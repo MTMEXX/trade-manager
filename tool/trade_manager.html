@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Trade Manager</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<h1>Trade Position Manager</h1>
+
+<div class="container">
+  <label>Valuta capitale:
+    <select id="capitalCurrency">
+      <option value="€">EUR (€)</option>
+      <option value="$">USD ($)</option>
+    </select>
+  </label>
+
+  <label>Valuta trade:
+    <select id="tradeCurrency">
+      <option value="€">EUR (€)</option>
+      <option value="$" selected>USD ($)</option>
+    </select>
+  </label>
+
+  <label>Tasso di cambio (manuale):
+    <input id="fxRate" placeholder="Es. 1.08">
+  </label>
+
+  <label>Capitale totale:
+    <input id="capitale" placeholder="10000">
+  </label>
+
+  <label>% rischio per trade:
+    <input id="rischioPerc" placeholder="1">
+  </label>
+  <div class="small-text" id="riskSuggestion"></div>
+
+  <label>Prezzo ingresso:
+    <input id="prezzoIngresso" placeholder="50">
+  </label>
+
+  <label>Prezzo Stop:
+    <input id="prezzoStop" placeholder="47.5">
+  </label>
+
+  <label>Commissione per transazione:
+    <input id="commissione" placeholder="1">
+  </label>
+
+  <label>Profilo gestione:
+    <select id="profiloGestione">
+      <option value="standard">Standard</option>
+      <option value="conservativo">Conservativo</option>
+      <option value="aggressivo">Aggressivo</option>
+      <option value="trend">Trend</option>
+    </select>
+  </label>
+
+  <button id="calcolaBtn">Calcola</button>
+
+  <div id="output"></div>
+
+  <div id="tradeMap"></div>
+</div>
+
+<script src="js/logic.js"></script>
+</body></html>
