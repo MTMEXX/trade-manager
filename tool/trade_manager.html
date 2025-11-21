@@ -2,67 +2,986 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>Trade Manager</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>Position Sizing & Trade Manager (Auto V6)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1080px;
+      padding: 24px 16px 40px;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.6rem;
+      text-align: center;
+      color: #f9fafb;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #9ca3af;
+      margin-bottom: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 16px;
+      padding: 18px 18px 20px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      backdrop-filter: blur(18px);
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #e5e7eb;
+    }
+
+    .card-subtitle {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+      color: #9ca3af;
+    }
+
+    .label-main {
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    input, select, button {
+      font-family: inherit;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: 9px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.7);
+      color: #e5e7eb;
+      font-size: 0.9rem;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 600px) {
+      .row-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .unit {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-left: 6px;
+    }
+
+    .small-text {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #0ea5e9, #22c55e);
+      color: #0b1120;
+      margin-top: 10px;
+      transition: transform 0.07s ease, box-shadow 0.07s ease, filter 0.15s ease;
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.4);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+      box-shadow: 0 16px 40px rgba(34, 197, 94, 0.55);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(34, 197, 94, 0.4);
+    }
+
+    .error {
+      display: none;
+      margin-top: 10px;
+      padding: 8px 9px;
+      border-radius: 10px;
+      border: 1px solid rgba(248, 113, 113, 0.9);
+      background: rgba(127, 29, 29, 0.7);
+      color: #fee2e2;
+      font-size: 0.8rem;
+    }
+
+    .muted {
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    .results-section {
+      margin-top: 10px;
+      border-top: 1px solid rgba(148, 163, 184, 0.4);
+      padding-top: 10px;
+      font-size: 0.88rem;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+    }
+
+    @media (max-width: 600px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .res-label {
+      font-size: 0.78rem;
+      color: #9ca3af;
+    }
+
+    .res-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f9fafb;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+
+    th, td {
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      text-align: right;
+    }
+
+    th {
+      color: #9ca3af;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.7);
+    }
+
+    td:first-child, th:first-child {
+      text-align: left;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+
+    .scenario-card {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+
+    .scenario-title {
+      font-size: 0.86rem;
+      font-weight: 600;
+      margin-bottom: 2px;
+      color: #e5e7eb;
+    }
+
+    .scenario-sub {
+      font-size: 0.76rem;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .scenario-line {
+      font-size: 0.78rem;
+      margin: 1px 0;
+    }
+
+    .scenario-pl-positive {
+      color: #4ade80;
+    }
+
+    .scenario-pl-negative {
+      color: #f97373;
+    }
+
+    /* Profit map container */
+    #tradeMap {
+      height: 6px;
+      width: 100%;
+      background: #1f2937;
+      border-radius: 4px;
+      margin-top: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+  </style>
 </head>
 <body>
-<h1>Trade Position Manager</h1>
+  <div class="app">
+    <h1>Position Sizing &amp; Trade Manager (Auto V6)</h1>
+    <div class="subtitle">
+      Rischio, cambio, costi di transazione, vendite automatiche, simulazione scenari e mappa visiva del trade.
+    </div>
 
-<div class="container">
-  <label>Valuta capitale:
-    <select id="capitalCurrency">
-      <option value="€">EUR (€)</option>
-      <option value="$">USD ($)</option>
-    </select>
-  </label>
+    <div class="grid">
+      <!-- INPUT -->
+      <div class="card">
+        <div class="card-title">Parametri di base</div>
 
-  <label>Valuta trade:
-    <select id="tradeCurrency">
-      <option value="€">EUR (€)</option>
-      <option value="$" selected>USD ($)</option>
-    </select>
-  </label>
+        <div class="row-2">
+          <div>
+            <label><span class="label-main">Valuta capitale</span></label>
+            <select id="capitalCurrency">
+              <option value="€" selected>EUR (€)</option>
+              <option value="$">USD ($)</option>
+            </select>
+          </div>
+          <div>
+            <label><span class="label-main">Valuta trade</span></label>
+            <select id="tradeCurrency">
+              <option value="€">EUR (€)</option>
+              <option value="$" selected>USD ($)</option>
+            </select>
+          </div>
+        </div>
 
-  <label>Tasso di cambio (manuale):
-    <input id="fxRate" placeholder="Es. 1.08">
-  </label>
+        <label>
+          <span class="label-main">Tasso di cambio (manuale)</span>
+        </label>
+        <input id="fxRate" placeholder="Es. 1.08">
+        <div class="small-text" id="fxLabelDynamic">1 EUR = ? USD</div>
 
-  <label>Capitale totale:
-    <input id="capitale" placeholder="10000">
-  </label>
+        <div class="row-2" style="margin-top:10px;">
+          <div>
+            <label>
+              <span class="label-main">Capitale totale</span>
+              <span class="unit" id="capCurLabel">€</span>
+            </label>
+            <input id="capitale" placeholder="Es. 10000">
+          </div>
+          <div>
+            <label>
+              <span class="label-main">% rischio per trade</span>
+              <span class="unit">%</span>
+            </label>
+            <input id="rischioPerc" placeholder="Es. 1">
+            <div class="small-text" id="riskSuggestion"></div>
+          </div>
+        </div>
 
-  <label>% rischio per trade:
-    <input id="rischioPerc" placeholder="1">
-  </label>
-  <div class="small-text" id="riskSuggestion"></div>
+        <label>
+          <span class="label-main">Prezzo di ingresso</span>
+          <span class="unit" id="tradeCurLabel1">$</span>
+        </label>
+        <input id="prezzoIngresso" placeholder="Es. 50">
 
-  <label>Prezzo ingresso:
-    <input id="prezzoIngresso" placeholder="50">
-  </label>
+        <label>
+          <span class="label-main">Prezzo Stop Loss</span>
+          <span class="unit" id="tradeCurLabel2">$</span>
+        </label>
+        <input id="prezzoStop" placeholder="Es. 47.50">
 
-  <label>Prezzo Stop:
-    <input id="prezzoStop" placeholder="47.5">
-  </label>
+        <label>
+          <span class="label-main">Costo per transazione</span>
+          <span class="unit" id="tradeCurLabel3">$</span>
+        </label>
+        <input id="commissione" placeholder="Es. 1">
 
-  <label>Commissione per transazione:
-    <input id="commissione" placeholder="1">
-  </label>
+        <label>
+          <span class="label-main">Profilo di gestione</span>
+        </label>
+        <select id="profiloGestione">
+          <option value="standard" selected>Standard (equilibrato)</option>
+          <option value="conservativo">Conservativo (più prese di profitto)</option>
+          <option value="aggressivo">Aggressivo (target più lontani)</option>
+          <option value="trend">Trend-Following (molto runner)</option>
+        </select>
 
-  <label>Profilo gestione:
-    <select id="profiloGestione">
-      <option value="standard">Standard</option>
-      <option value="conservativo">Conservativo</option>
-      <option value="aggressivo">Aggressivo</option>
-      <option value="trend">Trend</option>
-    </select>
-  </label>
+        <button class="btn-primary" id="calcolaBtn" type="button">Calcola trade</button>
 
-  <button id="calcolaBtn">Calcola</button>
+        <div id="errorBox" class="error"></div>
 
-  <div id="output"></div>
+        <div class="muted">
+          Il sizing considera le commissioni nello scenario peggiore: acquisto + stop loss.
+        </div>
+      </div>
 
-  <div id="tradeMap"></div>
-</div>
+      <!-- OUTPUT -->
+      <div class="card">
+        <div class="tag">Output</div>
+        <div class="card-title">Riepilogo &amp; livelli</div>
+        <div id="noResults" class="card-subtitle">
+          Inserisci i parametri a sinistra e clicca <b>Calcola trade</b>.
+        </div>
 
-<script src="js/logic.js"></script>
-</body></html>
+        <div id="results" style="display:none;">
+          <div class="results-section">
+            <div class="card-subtitle" style="margin-bottom:6px;">Rischio &amp; dimensionamento</div>
+            <div class="results-grid">
+              <div>
+                <div class="res-label">Rischio per trade (valuta capitale)</div>
+                <div class="res-value" id="resRischioCap"></div>
+              </div>
+              <div>
+                <div class="res-label">Rischio per trade (valuta trade)</div>
+                <div class="res-value" id="resRischioTrade"></div>
+              </div>
+              <div>
+                <div class="res-label">Distanza stop (R)</div>
+                <div class="res-value" id="resStopDistance"></div>
+              </div>
+              <div>
+                <div class="res-label">Quantità da acquistare</div>
+                <div class="res-value" id="resQuantita"></div>
+              </div>
+              <div>
+                <div class="res-label">Valore posizione (valuta trade)</div>
+                <div class="res-value" id="resValorePosTrade"></div>
+              </div>
+              <div>
+                <div class="res-label">Valore posizione (valuta capitale)</div>
+                <div class="res-value" id="resValorePosCap"></div>
+              </div>
+              <div>
+                <div class="res-label">Commissioni scenario stop (acquisto + stop)</div>
+                <div class="res-value" id="resCommStop"></div>
+              </div>
+              <div>
+                <div class="res-label">Commissioni piano completo TP + runner</div>
+                <div class="res-value" id="resCommTotale"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-section">
+            <div class="card-subtitle" style="margin-bottom:6px;">Livelli di take profit &amp; vendite automatiche</div>
+
+            <!-- PROFIT MAP -->
+            <div id="tradeMap"></div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Livello</th>
+                  <th>Multiplo R</th>
+                  <th>Prezzo target</th>
+                  <th>% vendita</th>
+                  <th>Quantità</th>
+                </tr>
+              </thead>
+              <tbody id="tpTableBody"></tbody>
+            </table>
+            <div class="muted" id="runnerInfo"></div>
+          </div>
+
+          <div class="results-section">
+            <div class="card-subtitle" style="margin-bottom:6px;">Scenari simulati (P/L netto, commissioni incluse)</div>
+            <div id="scenariContainer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Profili di gestione
+  const profili = {
+    conservativo: {
+      livelli: [
+        { label:"TP1", R:0.8, perc:40 },
+        { label:"TP2", R:1.5, perc:30 },
+        { label:"TP3", R:2.5, perc:20 }
+      ],
+      runnerPerc:10
+    },
+    standard: {
+      livelli:[
+        { label:"TP1", R:1, perc:30 },
+        { label:"TP2", R:2, perc:30 },
+        { label:"TP3", R:3, perc:20 }
+      ],
+      runnerPerc:20
+    },
+    aggressivo: {
+      livelli:[
+        { label:"TP1", R:1.5, perc:20 },
+        { label:"TP2", R:3, perc:30 },
+        { label:"TP3", R:4.5, perc:20 }
+      ],
+      runnerPerc:30
+    },
+    trend: {
+      livelli:[
+        { label:"TP1", R:2, perc:15 },
+        { label:"TP2", R:3, perc:20 },
+        { label:"TP3", R:5, perc:15 }
+      ],
+      runnerPerc:50
+    }
+  };
+
+  const symbolToCode = { "€": "EUR", "$": "USD" };
+
+  function parseLocaleNumber(value) {
+    if (!value) return NaN;
+    return parseFloat(value.toString().trim().replace(',', '.'));
+  }
+
+  function formatNum(value, decimals = 2) {
+    if (!isFinite(value)) return "-";
+    return value.toLocaleString("it-IT", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  }
+
+  function updateCurrencyLabels() {
+    const capSym = document.getElementById("capitalCurrency").value;
+    const tradeSym = document.getElementById("tradeCurrency").value;
+    document.getElementById("capCurLabel").textContent = capSym;
+    document.getElementById("tradeCurLabel1").textContent = tradeSym;
+    document.getElementById("tradeCurLabel2").textContent = tradeSym;
+    document.getElementById("tradeCurLabel3").textContent = tradeSym;
+
+    const capCode = symbolToCode[capSym];
+    const tradeCode = symbolToCode[tradeSym];
+
+    if (capCode === tradeCode) {
+      document.getElementById("fxLabelDynamic").textContent = "Stessa valuta: tasso = 1";
+      if (!document.getElementById("fxRate").value) {
+        document.getElementById("fxRate").value = "1";
+      }
+    } else {
+      document.getElementById("fxLabelDynamic").textContent =
+        `1 ${capCode} = ? ${tradeCode}`;
+    }
+  }
+
+  document.getElementById("capitalCurrency").addEventListener("change", updateCurrencyLabels);
+  document.getElementById("tradeCurrency").addEventListener("change", updateCurrencyLabels);
+  updateCurrencyLabels();
+
+  // Suggeritore automatico del rischio in base alla distanza dello stop
+  function updateRiskSuggestion() {
+    const ingresso = parseLocaleNumber(document.getElementById("prezzoIngresso").value);
+    const stop = parseLocaleNumber(document.getElementById("prezzoStop").value);
+    const box = document.getElementById("riskSuggestion");
+
+    if (!isFinite(ingresso) || !isFinite(stop) || stop >= ingresso) {
+      box.textContent = "";
+      return;
+    }
+
+    const stopPct = ((ingresso - stop) / ingresso) * 100;
+    let suggestion = "";
+
+    if (stopPct < 1) {
+      suggestion = "Stop molto stretto: rischio consigliato 1%–1.5%.";
+    } else if (stopPct < 3) {
+      suggestion = "Stop normale: rischio consigliato 0.5%–1%.";
+    } else {
+      suggestion = "Stop ampio: rischio consigliato 0.25%–0.5%.";
+    }
+
+    box.textContent = suggestion;
+  }
+
+  document.getElementById("prezzoIngresso").addEventListener("input", updateRiskSuggestion);
+  document.getElementById("prezzoStop").addEventListener("input", updateRiskSuggestion);
+
+  // Profit map: stop, ingresso, TP, +5R
+  function renderMap(targets, ingresso, stop) {
+    const map = document.getElementById("tradeMap");
+    if (!map) return;
+    map.innerHTML = "";
+
+    if (!targets || targets.length === 0) return;
+
+    const R = ingresso - stop;
+    if (R <= 0) return;
+
+    const min = stop;
+    const max = ingresso + 5 * R; // scala fino a +5R
+
+    if (max <= min) return;
+
+    function addMarker(xPercent, color, height) {
+      const m = document.createElement("div");
+      m.style.position = "absolute";
+      m.style.left = xPercent + "%";
+      m.style.top = "0";
+      m.style.width = "2px";
+      m.style.height = (height || 6) + "px";
+      m.style.background = color;
+      m.style.transform = "translateX(-1px)";
+      map.appendChild(m);
+    }
+
+    // Stop (0%)
+    addMarker(0, "#f97373", 6);
+
+    // Ingresso
+    const xIngresso = ((ingresso - min) / (max - min)) * 100;
+    addMarker(xIngresso, "#e5e7eb", 4);
+
+    // TPs
+    targets.forEach(t => {
+      const x = ((t.price - min) / (max - min)) * 100;
+      addMarker(x, "#22c55e", 6);
+    });
+
+    // +5R (100%)
+    addMarker(100, "#38bdf8", 6);
+  }
+
+  function renderScenari(params) {
+    const {
+      capitale, capCode, tradeCode, capSym, tradeSym,
+      fxRate, quantita, prezzoIngresso, prezzoStop,
+      stopDistance, commissione, livelliVendite, runnerQty
+    } = params;
+
+    const container = document.getElementById("scenariContainer");
+    container.innerHTML = "";
+
+    const sameCurrency = (capCode === tradeCode);
+
+    function computeScenario(title, descr, reachedLevelsCount, finalMode) {
+      let cash = -quantita * prezzoIngresso - commissione; // acquisto
+      let qtyLeft = quantita;
+      let numTrans = 1;
+
+      // Applica i TP raggiunti
+      for (let i = 0; i < reachedLevelsCount && i < livelliVendite.length; i++) {
+        const l = livelliVendite[i];
+        if (!l || l.qty <= 0) continue;
+        cash += l.qty * l.price - commissione;
+        qtyLeft -= l.qty;
+        numTrans++;
+      }
+
+      let finalPrice = prezzoStop;
+      let finalLabelExtra = "";
+
+      if (finalMode === "stop") {
+        finalPrice = prezzoStop;
+        finalLabelExtra = "Chiusura residuo a stop iniziale.";
+      } else if (finalMode === "runnerR2") {
+        finalPrice = prezzoIngresso + 2 * stopDistance;
+        finalLabelExtra = "Runner chiuso a +2R.";
+      } else if (finalMode === "runnerR3") {
+        finalPrice = prezzoIngresso + 3 * stopDistance;
+        finalLabelExtra = "Runner chiuso a +3R.";
+      } else if (finalMode === "runnerR5") {
+        finalPrice = prezzoIngresso + 5 * stopDistance;
+        finalLabelExtra = "Runner chiuso a +5R.";
+      } else if (finalMode === "runnerTrailing") {
+        // ipotizziamo massimo a 5R, trailing 1R -> uscita a 4R
+        finalPrice = prezzoIngresso + 4 * stopDistance;
+        finalLabelExtra = "Runner chiuso da trailing: massimo ipotetico 5R, stop a 4R (max−1R).";
+      }
+
+      if (qtyLeft > 0) {
+        cash += qtyLeft * finalPrice - commissione;
+        numTrans++;
+      }
+
+      const plTrade = cash;
+      const plCap = sameCurrency ? plTrade : (plTrade / fxRate);
+      const pctCap = capitale > 0 ? (plCap / capitale * 100) : 0;
+
+      return {
+        title,
+        descr,
+        plTrade,
+        plCap,
+        pctCap,
+        numTrans,
+        finalPrice,
+        finalLabelExtra
+      };
+    }
+
+    const scenari = [];
+
+    scenari.push(
+      computeScenario(
+        "Scenario 1: solo STOP LOSS",
+        "Nessun take profit: il prezzo scende direttamente allo stop.",
+        0,
+        "stop"
+      )
+    );
+
+    scenari.push(
+      computeScenario(
+        "Scenario 2: TP1 poi stop sul resto",
+        "Viene colpito solo il primo livello di profitto, poi il prezzo torna allo stop.",
+        1,
+        "stop"
+      )
+    );
+
+    scenari.push(
+      computeScenario(
+        "Scenario 3: TP1 + TP2 poi stop sul resto",
+        "Colpiti i primi due livelli, poi ritorno allo stop iniziale.",
+        2,
+        "stop"
+      )
+    );
+
+    scenari.push(
+      computeScenario(
+        "Scenario 4: TP1 + TP2 + TP3 poi stop anche sul runner",
+        "Tutti i TP raggiunti, ma il runner finale torna allo stop.",
+        3,
+        "stop"
+      )
+    );
+
+    if (runnerQty > 0) {
+      scenari.push(
+        computeScenario(
+          "Scenario 5: tutti i TP + runner chiuso a +2R",
+          "TP1, TP2 e TP3 colpiti, il runner viene chiuso a +2R.",
+          3,
+          "runnerR2"
+        )
+      );
+      scenari.push(
+        computeScenario(
+          "Scenario 6: tutti i TP + runner chiuso a +3R",
+          "TP1, TP2 e TP3 colpiti, il runner viene chiuso a +3R.",
+          3,
+          "runnerR3"
+        )
+      );
+      scenari.push(
+        computeScenario(
+          "Scenario 7: tutti i TP + runner chiuso a +5R",
+          "TP1, TP2 e TP3 colpiti, il runner viene chiuso a +5R.",
+          3,
+          "runnerR5"
+        )
+      );
+      scenari.push(
+        computeScenario(
+          "Scenario 8: tutti i TP + runner chiuso da trailing",
+          "TP1, TP2 e TP3 colpiti, il runner viene chiuso da trailing dopo un massimo ipotetico a 5R.",
+          3,
+          "runnerTrailing"
+        )
+      );
+    }
+
+    scenari.forEach(s => {
+      const plClass = s.plCap >= 0 ? "scenario-pl-positive" : "scenario-pl-negative";
+      const div = document.createElement("div");
+      div.className = "scenario-card";
+      div.innerHTML = `
+        <div class="scenario-title">${s.title}</div>
+        <div class="scenario-sub">${s.descr}</div>
+        <div class="scenario-line ${plClass}">
+          P/L in valuta trade: ${formatNum(s.plTrade, 2)} ${tradeSym}
+        </div>
+        <div class="scenario-line ${plClass}">
+          P/L in valuta capitale: ${formatNum(s.plCap, 2)} ${capSym}
+          (${s.pctCap >= 0 ? "+" : ""}${formatNum(s.pctCap, 2)}%)
+        </div>
+        <div class="scenario-line">
+          Transazioni incluse: ${s.numTrans} (acquisto, TP raggiunti, chiusura finale).
+        </div>
+        <div class="scenario-line">
+          Prezzo di chiusura finale: ${formatNum(s.finalPrice, 4)} ${tradeSym}.
+        </div>
+        <div class="scenario-line">
+          Nota: ${s.finalLabelExtra}
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  document.getElementById("calcolaBtn").addEventListener("click", () => {
+    const errorBox = document.getElementById("errorBox");
+    const resultsBox = document.getElementById("results");
+    const noResults = document.getElementById("noResults");
+
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+
+    const capSym = document.getElementById("capitalCurrency").value;
+    const tradeSym = document.getElementById("tradeCurrency").value;
+    const capCode = symbolToCode[capSym];
+    const tradeCode = symbolToCode[tradeSym];
+
+    const capitale = parseLocaleNumber(document.getElementById("capitale").value);
+    const rischioPerc = parseLocaleNumber(document.getElementById("rischioPerc").value);
+    const prezzoIngresso = parseLocaleNumber(document.getElementById("prezzoIngresso").value);
+    const prezzoStop = parseLocaleNumber(document.getElementById("prezzoStop").value);
+    const commissione = parseLocaleNumber(document.getElementById("commissione").value || "0");
+    let fxRate = parseLocaleNumber(document.getElementById("fxRate").value || "1");
+
+    const profiloKey = document.getElementById("profiloGestione").value;
+    const profilo = profili[profiloKey];
+
+    const errors = [];
+
+    if (!isFinite(capitale) || capitale <= 0) {
+      errors.push("Capitale non valido.");
+    }
+    if (!isFinite(rischioPerc) || rischioPerc <= 0 || rischioPerc >= 100) {
+      errors.push("La % di rischio deve essere > 0 e < 100.");
+    }
+    if (!isFinite(prezzoIngresso) || prezzoIngresso <= 0) {
+      errors.push("Prezzo di ingresso non valido.");
+    }
+    if (!isFinite(prezzoStop) || prezzoStop <= 0) {
+      errors.push("Prezzo di stop non valido.");
+    }
+    if (prezzoStop >= prezzoIngresso) {
+      errors.push("Per un long, lo stop deve essere inferiore al prezzo di ingresso.");
+    }
+    if (!isFinite(commissione) || commissione < 0) {
+      errors.push("La commissione per transazione deve essere ≥ 0.");
+    }
+    if (capCode !== tradeCode) {
+      if (!isFinite(fxRate) || fxRate <= 0) {
+        errors.push("Tasso di cambio non valido.");
+      }
+    } else {
+      fxRate = 1;
+    }
+    if (!profilo) {
+      errors.push("Profilo di gestione non valido.");
+    } else {
+      const totPerc = profilo.livelli.reduce((a, l) => a + l.perc, 0) + profilo.runnerPerc;
+      if (Math.abs(totPerc - 100) > 0.001) {
+        errors.push("Errore interno profilo: percentuali ≠ 100%.");
+      }
+    }
+
+    if (errors.length > 0) {
+      errorBox.innerHTML = errors.join("<br>");
+      errorBox.style.display = "block";
+      resultsBox.style.display = "none";
+      noResults.style.display = "block";
+      return;
+    }
+
+    const rischioCap = capitale * (rischioPerc / 100);
+
+    let rischioTradeBudget;
+    if (capCode === tradeCode) {
+      rischioTradeBudget = rischioCap;
+    } else {
+      rischioTradeBudget = rischioCap * fxRate;
+    }
+
+    const stopDistance = prezzoIngresso - prezzoStop;
+    if (stopDistance <= 0) {
+      errorBox.textContent = "Distanza stop non valida.";
+      errorBox.style.display = "block";
+      resultsBox.style.display = "none";
+      noResults.style.display = "block";
+      return;
+    }
+
+    const rischioDisponibilePerPrezzo = rischioTradeBudget - 2 * commissione;
+
+    if (rischioDisponibilePerPrezzo <= 0) {
+      errorBox.textContent = "Rischio troppo basso per coprire stop e commissioni (acquisto + stop).";
+      errorBox.style.display = "block";
+      resultsBox.style.display = "none";
+      noResults.style.display = "block";
+      return;
+    }
+
+    let quantita = Math.floor(rischioDisponibilePerPrezzo / stopDistance);
+    if (quantita < 1) {
+      errorBox.textContent = "Rischio troppo basso: non è possibile acquistare neanche 1 unità con questo stop.";
+      errorBox.style.display = "block";
+      resultsBox.style.display = "none";
+      noResults.style.display = "block";
+      return;
+    }
+
+    const valorePosTrade = quantita * prezzoIngresso;
+    let valorePosCap;
+    if (capCode === tradeCode) {
+      valorePosCap = valorePosTrade;
+    } else {
+      valorePosCap = valorePosTrade / fxRate;
+    }
+
+    // Livelli e quantità vendute
+    let residua = quantita;
+    const tbody = document.getElementById("tpTableBody");
+    tbody.innerHTML = "";
+
+    const livelliVendite = [];
+    let numVenditeTP = 0;
+
+    profilo.livelli.forEach(liv => {
+      let qtyVendere = Math.floor(quantita * (liv.perc / 100));
+      if (qtyVendere > residua) qtyVendere = residua;
+      if (qtyVendere < 0) qtyVendere = 0;
+
+      if (qtyVendere > 0) numVenditeTP++;
+
+      residua -= qtyVendere;
+      const targetPrice = prezzoIngresso + liv.R * stopDistance;
+
+      livelliVendite.push({
+        label: liv.label,
+        R: liv.R,
+        perc: liv.perc,
+        qty: qtyVendere,
+        price: targetPrice
+      });
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${liv.label}</td>
+        <td>${liv.R.toFixed(2)} R</td>
+        <td>${formatNum(targetPrice, 4)} ${tradeSym}</td>
+        <td>${liv.perc.toFixed(1)}%</td>
+        <td>${qtyVendere}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    const runnerQty = residua;
+    const runnerPercEff = (runnerQty / quantita) * 100;
+
+    const runnerInfo = document.getElementById("runnerInfo");
+    if (runnerQty > 0) {
+      runnerInfo.textContent =
+        `Runner: ${runnerQty} unità (~${runnerPercEff.toFixed(1)}% della posizione) da gestire con trailing o ulteriori target.`;
+    } else {
+      runnerInfo.textContent =
+        "Nessuna quantità residua per runner: le vendite automatiche coprono il 100% (arrotondato) della posizione.";
+    }
+
+    // Commissioni
+    const commissioniStopScenario = commissione * 2; // buy + stop loss
+    const numTransazioniPiano = 1 + numVenditeTP + (runnerQty > 0 ? 1 : 0);
+    const commTotaliPiano = commissione * numTransazioniPiano;
+
+    // Output base
+    document.getElementById("resRischioCap").textContent =
+      `${formatNum(rischioCap, 2)} ${capSym}`;
+    document.getElementById("resRischioTrade").textContent =
+      `${formatNum(rischioTradeBudget, 2)} ${tradeSym}`;
+    document.getElementById("resStopDistance").textContent =
+      `${formatNum(stopDistance, 4)} ${tradeSym}`;
+    document.getElementById("resQuantita").textContent =
+      `${quantita} unità`;
+    document.getElementById("resValorePosTrade").textContent =
+      `${formatNum(valorePosTrade, 2)} ${tradeSym}`;
+    document.getElementById("resValorePosCap").textContent =
+      `${formatNum(valorePosCap, 2)} ${capSym}`;
+    document.getElementById("resCommStop").textContent =
+      `${formatNum(commissioniStopScenario, 2)} ${tradeSym} (2 transazioni)`;
+    document.getElementById("resCommTotale").textContent =
+      `${formatNum(commTotaliPiano, 2)} ${tradeSym} (${numTransazioniPiano} transazioni stimate)`;
+
+    // Profit map
+    renderMap(livelliVendite, prezzoIngresso, prezzoStop);
+
+    // Scenari
+    renderScenari({
+      capitale,
+      capCode,
+      tradeCode,
+      capSym,
+      tradeSym,
+      fxRate,
+      quantita,
+      prezzoIngresso,
+      prezzoStop,
+      stopDistance,
+      commissione,
+      livelliVendite,
+      runnerQty
+    });
+
+    resultsBox.style.display = "block";
+    noResults.style.display = "none";
+  });
+</script>
+</body>
+</html>
