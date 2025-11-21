@@ -1,8 +1,129 @@
 <!DOCTYPE html>
-<html><head><meta charset='UTF-8'><title>Dashboard</title></head>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MEX – Trading Tools Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #f1f5f9;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      padding: 40px 20px;
+      width: 100%;
+      max-width: 1050px;
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      text-align: center;
+      margin-bottom: 10px;
+      color: #f8fafc;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 40px;
+      font-size: 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 25px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 25px;
+      border-radius: 18px;
+      cursor: pointer;
+      transition: 0.25s ease;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.4rem;
+      margin: 0;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .footer {
+      margin-top: 50px;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+
 <body>
-<h1>MEX Trading Dashboard</h1>
-<ul>
-  <li><a href="tool/trade_manager.html">Trade Manager</a></li>
-</ul>
-</body></html>
+  <div class="container">
+    <h1>MEX Trading Dashboard</h1>
+    <div class="subtitle">Tutti i tuoi strumenti di trading in un unico pannello.</div>
+
+    <div class="grid">
+
+      <a href="tool/trade_manager.html">
+        <div class="card">
+          <h3>📈 Trade Position Manager</h3>
+          <p>Calcolo automatico della size, gestione TP, stop, runner, FX, commissioni e analisi rischio.</p>
+        </div>
+      </a>
+
+      <a href="#">
+        <div class="card">
+          <h3>📊 Portfolio Analyzer</h3>
+          <p>Analisi rischio portafoglio, correlazioni, sizing multi-asset. (coming soon)</p>
+        </div>
+      </a>
+
+      <a href="#">
+        <div class="card">
+          <h3>📝 Trading Journal</h3>
+          <p>Registro avanzato delle operazioni con metriche di performance. (coming soon)</p>
+        </div>
+      </a>
+
+      <a href="#">
+        <div class="card">
+          <h3>🔍 Market Screener</h3>
+          <p>Filtri multi-parametro e scansione dei mercati. (coming soon)</p>
+        </div>
+      </a>
+
+    </div>
+
+    <div class="footer">© 2025 – MEX Trading Lab</div>
+  </div>
+</body>
+</html>
