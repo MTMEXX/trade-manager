@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MEX – Portfolio Analyzer</title>
+  <link rel="stylesheet" href="css/portfolio_analyzer.css">
+</head>
+
+<body>
+
+  <div class="container">
+
+    <h1>📊 Portfolio Analyzer</h1>
+    <p class="subtitle">Carica un CSV dei tuoi trade per analizzare performance e posizioni aperte.</p>
+
+    <div class="card upload-card">
+      <p class="label">Carica file CSV</p>
+      <input type="file" id="csvFile" accept=".csv">
+      <button id="analyzeBtn" class="btn-primary">Analizza</button>
+    </div>
+
+    <div id="results" class="card results-card"></div>
+
+  </div>
+
+  <script src="js/portfolio_analyzer.js"></script>
+</body>
+</html>

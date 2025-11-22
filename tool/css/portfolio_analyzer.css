@@ -1,0 +1,93 @@
+/* === PALETTE E BASE === */
+body {
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  color: #f1f5f9;
+  font-family: system-ui, sans-serif;
+}
+
+.container {
+  max-width: 900px;
+  margin: auto;
+  padding: 40px 20px;
+}
+
+/* === TITOLI === */
+h1 {
+  text-align: center;
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+  color: #f8fafc;
+}
+
+.subtitle {
+  text-align: center;
+  color: #94a3b8;
+  margin-bottom: 35px;
+}
+
+/* === CARD STILE TRADE MANAGER === */
+.card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 25px;
+  border-radius: 18px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.3);
+  margin-bottom: 25px;
+}
+
+.upload-card input[type=file] {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  margin-top: 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+}
+
+/* === BOTTONI === */
+.btn-primary {
+  width: 100%;
+  margin-top: 15px;
+  padding: 12px;
+  background: #38bdf8;
+  font-weight: bold;
+  font-size: 1rem;
+  color: #0f172a;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #7dd3fc;
+}
+
+/* === RISULTATI === */
+.results-card {
+  display: none;
+}
+
+.results-card.visible {
+  display: block;
+}
+
+/* === TABELLA === */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th, td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #334155;
+}
+
+th {
+  color: #e2e8f0;
+}
