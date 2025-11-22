@@ -1,157 +1,174 @@
-// === PORTFOLIO ANALYZER — Versione adattata al CSV personale MEX ===
-// CSV richiesto:
-//
-// DESCRIZIONE,MOVIMENTO,QTA,IMPORTO,DATA,TIPOLOGIA
-//
-// Esempi MOVIMENTO:
-// - Entrata  (vendite, dividendi)
-// - Uscita   (acquisti, competenze, imposte)
-//
-// IMPORTO è totale OVERALL (commissioni già incluse)
+/* === UTILS === */
 
-// === UTILS ===
-function parseNum(v) {
-  if (!v) return 0;
+// converte numeri europei tipo "-824,32 €"
+function parseEuro(value) {
+  if (!value) return 0;
   return parseFloat(
-    v.toString()
-      .replace("€", "")
-      .replace(/\./g, "")
+    value
+      .toString()
+      .replace(/[€\s]/g, "")
+      .replace(".", "")
       .replace(",", ".")
-      .trim()
   );
 }
 
-// === BUTTON HANDLER ===
-document.getElementById("analyzeBtn").addEventListener("click", () => {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Carica un CSV prima.");
-
-  const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result);
-  reader.readAsText(file);
-});
-
-// === CSV PARSER ===
-function parseCSV(text) {
-  const delimiter = text.split("\n")[0].includes(";") ? ";" : ",";
-
-  const rows = text.trim().split("\n").map(r => r.split(delimiter));
-  const headers = rows[0].map(h => h.trim().toUpperCase());
-
-  const trades = rows.slice(1).map(r => {
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = (r[i] || "").trim());
-    return obj;
-  });
-
-  analyzeTrades(trades);
+function normalize(str) {
+  return str.toString().trim().toLowerCase();
 }
 
-// === CORE LOGIC ===
-function analyzeTrades(trades) {
+/* === CARICAMENTO FILE === */
+
+document.getElementById("analyzeBtn").addEventListener("click", () => {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Carica un file CSV!");
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file, "latin1"); // Excel ITA
+});
+
+/* === PARSER CSV === */
+
+function parseCSV(text) {
+  const firstLine = text.split("\n")[0];
+  const delimiter = firstLine.includes(";") ? ";" : ",";
+  const rows = text.trim().split("\n").map(r => r.split(delimiter));
+
+  const headers = rows[0].map(h => normalize(h));
+  const data = rows.slice(1).map(row => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = row[i] ? row[i].trim() : "");
+    return o;
+  });
+
+  analyze(data);
+}
+
+/* === ANALISI DEL PORTAFOGLIO === */
+
+function analyze(rows) {
+
   let closedPnL = 0;
-  let totalFees = 0;
+  let commissions = 0;
   let wins = 0, losses = 0;
+  const positions = {}; // asset → { qty, avg }
 
-  const positions = {}; // DESCRIZIONE → { qty, avg }
+  rows.forEach(t => {
+    const asset = t["descrizione"];
+    const tipo = normalize(t["tipologia"]);
+    const qty = parseFloat(t["qta'"]);
+    const amount = parseEuro(t["importo"]);
 
-  trades.forEach(t => {
-    const asset = t["DESCRIZIONE"];
-    const movimento = t["MOVIMENTO"]; // Entrata / Uscita
-    const tipo = t["TIPOLOGIA"];      // Acquisto titoli / Vendita titoli / Dividendi / Imposte…
-    const qty = parseNum(t["QTA"]);
-    const amount = parseNum(t["IMPORTO"]); // TOTAL import (negativo o positivo)
+    if (!asset || !qty || !tipo) return;
 
-    // --- SPESE / IMPOSTE ---
-    if (tipo === "Competenze" || tipo === "Imposta") {
-      closedPnL += amount; // amount è negativo, abbassa il PnL
+    /* ---------------------  
+         CLASSIFICAZIONE  
+       --------------------- */
+
+    let side = null;
+
+    if (tipo.includes("acquisto titoli")) side = "BUY";
+    else if (tipo.includes("vendita titoli")) side = "SELL";
+    else if (tipo.includes("dividendi")) side = "DIV";
+    else if (tipo.includes("imposta")) side = "TAX";
+    else if (tipo.includes("competenze") || tipo.includes("spese")) side = "FEE";
+    else side = "OTHER";
+
+    /* ---------------------
+         LOGICA DI PORTAFOGLIO
+       --------------------- */
+
+    // ENTRATE/USCITE non legate a titoli
+    if (side === "DIV") {
+      closedPnL += amount;
+      return;
+    }
+    if (side === "TAX" || side === "FEE") {
+      closedPnL += amount; // negative importo → perdita
+      commissions += Math.abs(amount);
       return;
     }
 
-    // --- DIVIDENDI ---
-    if (tipo === "Accredito dividendi") {
-      closedPnL += amount; // positivo → profit
+    // Ignora operazioni senza asset reale
+    if (asset.toLowerCase().includes("spese") || asset.toLowerCase().includes("conto"))
       return;
-    }
 
-    // --- ASSICURA asset esistente ---
     if (!positions[asset]) positions[asset] = { qty: 0, avg: 0 };
+
     const pos = positions[asset];
 
-    // --- ACQUISTO ---
-    if (movimento === "Uscita" && tipo === "Acquisto titoli") {
-      const totalCost = Math.abs(amount);
-      const oldValue = pos.qty * pos.avg;
-      const newValue = oldValue + totalCost;
+    if (side === "BUY") {
+      const totalOld = pos.qty * pos.avg;
+      const totalNew = totalOld + Math.abs(amount);
       pos.qty += qty;
-      pos.avg = newValue / pos.qty;
+      pos.avg = totalNew / pos.qty;
     }
 
-    // --- VENDITA ---
-    if (movimento === "Entrata" && tipo === "Vendita titoli") {
-      if (pos.qty <= 0) return;
+    else if (side === "SELL") {
+      const sellQty = Math.min(qty, pos.qty);
+      const sellPrice = Math.abs(amount) / sellQty;
 
-      const sellValue = amount; // positivo
-      const costBasis = pos.avg * qty;
-      const realized = sellValue - costBasis;
-
+      const realized = (sellPrice - pos.avg) * sellQty;
       closedPnL += realized;
 
-      if (realized >= 0) wins++;
-      else losses++;
+      if (realized >= 0) wins++; else losses++;
 
-      pos.qty -= qty;
-      if (pos.qty <= 0) pos.avg = 0;
+      pos.qty -= sellQty;
+      if (pos.qty === 0) pos.avg = 0;
     }
   });
 
+  /* --- POSIZIONI APERTE --- */
   const openPositions = Object.entries(positions)
     .filter(([_, p]) => p.qty > 0)
     .map(([asset, p]) => ({
       asset,
-      qty: p.qty,
+      quantity: p.qty,
       avg: p.avg
     }));
 
-  const winRate = wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0;
-
-  renderResults({
+  render({
     closedPnL,
     wins,
     losses,
-    winRate,
+    commissions,
     openPositions
   });
 }
 
-// === RENDER UI ===
-function renderResults(data) {
-  const wrap = document.getElementById("results");
-  wrap.classList.add("visible");
+/* === RENDER OUTPUT === */
+
+function render(res) {
+  const card = document.getElementById("results");
+  card.classList.add("visible");
 
   const fmt = v => isFinite(v) ? v.toFixed(2) : "-";
 
   let html = `
     <h2>📊 Risultati Analisi</h2>
-    <p><b>PNL Totale:</b> ${fmt(data.closedPnL)}</p>
-    <p><b>Win rate:</b> ${data.wins}/${data.wins + data.losses} (${fmt(data.winRate)}%)</p>
+    <p><b>PNL totale:</b> ${fmt(res.closedPnL)} €</p>
+    <p><b>Win rate:</b> ${res.wins}/${res.wins + res.losses}
+       (${res.wins + res.losses > 0 ? (res.wins/(res.wins+res.losses)*100).toFixed(1) : "0"}%)</p>
+    <p><b>Commissioni/spese totali:</b> ${fmt(res.commissions)} €</p>
 
     <h3>📂 Posizioni Aperte</h3>
   `;
 
-  if (data.openPositions.length === 0) {
+  if (res.openPositions.length === 0) {
     html += `<p>Nessuna posizione aperta.</p>`;
   } else {
-    html += `<table><tr><th>Asset</th><th>QTA</th><th>PM</th></tr>`;
-    data.openPositions.forEach(p => {
+    html += `<table>
+      <tr><th>Asset</th><th>Quantità</th><th>Prezzo Medio</th></tr>`;
+
+    res.openPositions.forEach(p => {
       html += `<tr>
         <td>${p.asset}</td>
-        <td>${p.qty}</td>
+        <td>${p.quantity}</td>
         <td>${fmt(p.avg)}</td>
       </tr>`;
     });
+
     html += `</table>`;
   }
 
-  wrap.innerHTML = html;
+  card.innerHTML = html;
 }
