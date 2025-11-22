@@ -1,240 +1,268 @@
-// === PORTFOLIO ANALYZER JS ===
-// Attende CSV con colonne:
-// DESCRIZIONE, MOVIMENTO, QTA', IMPORTO, DATA, TIPOLOGIA
+/* ==========================
+   PORTFOLIO ANALYZER v2.0
+   ========================== */
 
 /* === UTILS === */
-
 function parseNum(value) {
   if (!value) return 0;
   return parseFloat(
-    value.toString()
-      .replace(/\./g, '')
-      .replace(",", ".")
-      .replace("€", "")
-      .trim()
+    value.replace(/\./g, "").replace(",", ".").replace("€", "").trim()
   );
 }
 
-function parseDate(d) {
-  const [day, month, year] = d.split("/");
-  return new Date(`${year}-${month}-${day}`);
+function cleanAsset(a) {
+  return a.trim().toUpperCase();
 }
 
-/* === FILE HANDLER === */
-
+/* === LOAD CSV === */
 document.getElementById("analyzeBtn").addEventListener("click", () => {
   const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("Carica il CSV prima.");
+  if (!file) return alert("Carica un CSV!");
 
   const reader = new FileReader();
   reader.onload = e => parseCSV(e.target.result);
-  reader.readAsText(file);
+  reader.readAsText(file, "ISO-8859-1");
 });
 
-/* === PARSE CSV === */
-
 function parseCSV(text) {
-  const delim = text.includes(";") ? ";" : ",";
-  const rows = text.trim().split("\n").map(r => r.split(delim));
+  const sep = text.includes(";") ? ";" : ",";
+  const rows = text.trim().split("\n").map(r => r.split(sep));
 
   const headers = rows[0].map(h => h.trim());
-  const entries = rows.slice(1).map(row => {
-    const o = {};
-    headers.forEach((h, idx) => {
-      o[h] = row[idx] ? row[idx].trim() : "";
-    });
-    return o;
-  });
+  const trades = rows.slice(1).map(r =>
+    Object.fromEntries(headers.map((h, i) => [h, r[i] ? r[i].trim() : ""]))
+  );
 
-  analyze(entries);
+  analyzeTrades(trades);
 }
 
-/* === ANALISI === */
+/* ======================
+   LOGICA DI ANALISI
+   ====================== */
 
-function analyze(rows) {
+function analyzeTrades(trades) {
 
-  let positions = {};
-  let closedTrades = [];
+  let closedPositions = [];
+  let openPositions = {};
 
-  let dividends = 0;
+  let pnlRealized = 0;
+  let divReceived = 0;
+  let commissions = 0;
   let taxes = 0;
-  let fees = 0;
 
-  rows.forEach(r => {
-    const asset = r["DESCRIZIONE"];
-    const tipo = r["TIPOLOGIA"];
-    const movimento = r["MOVIMENTO"].toUpperCase();
-    const qty = parseNum(r["QTA'"]);
-    const amount = parseNum(r["IMPORTO"]);
-    const date = parseDate(r["DATA"]);
+  let pnlHistory = []; // per grafico
 
-    if (!asset || !tipo) return;
+  trades.forEach(t => {
+    const asset = cleanAsset(t["DESCRIZIONE"]);
+    const mov = t["MOVIMENTO"].toUpperCase();      // Entrata/Uscita
+    const type = t["TIPOLOGIA"];                   // Acquisto/Vendita/Dividendi/etc
+    const qty = parseNum(t["QTA'"]);
+    const amount = parseNum(t["IMPORTO"]);
+    const date = t["DATA"];
 
-    // === DIVIDENDI ===
-    if (tipo === "Accredito dividendi") {
-      dividends += amount;
+    // Inizializza asset
+    if (!openPositions[asset]) {
+      openPositions[asset] = { qty: 0, avg: 0 };
+    }
+
+    /* === COMPETENZE / IMPOSTE === */
+    if (type === "Competenze") {
+      commissions += Math.abs(amount);
       return;
     }
 
-    // === IMPOSTE ===
-    if (tipo === "Imposta") {
-      taxes += amount;
+    if (type === "Imposta") {
+      taxes += Math.abs(amount);
       return;
     }
 
-    // === COMPETENZE (SPESE) ===
-    if (tipo === "Competenze") {
-      fees += amount;
+    /* === DIVIDENDI === */
+    if (type === "Accredito dividendi") {
+      divReceived += amount;
+      pnlHistory.push({ date, value: amount });
       return;
     }
 
-    // === OPERATIVITÀ SU ASSET ===
-    if (!positions[asset]) {
-      positions[asset] = {
-        asset,
-        qty: 0,
-        avg: 0,
-        history: [] // per analisi chiusure
-      };
-    }
-
-    const pos = positions[asset];
-
-    if (tipo === "Acquisto titoli") {
+    /* === ACQUISTO TITOLI === */
+    if (type === "Acquisto titoli") {
+      const pos = openPositions[asset];
       const totalCost = pos.qty * pos.avg + Math.abs(amount);
       pos.qty += qty;
       pos.avg = totalCost / pos.qty;
-      pos.history.push({ date, qty, price: Math.abs(amount) / qty, type: "BUY" });
+      return;
     }
 
-    if (tipo === "Vendita titoli") {
-      const sellPrice = amount / qty;
-      const realized = (sellPrice - pos.avg) * qty;
+    /* === VENDITA TITOLI === */
+    if (type === "Vendita titoli") {
+      const pos = openPositions[asset];
 
-      pos.history.push({ date, qty, price: sellPrice, type: "SELL", realized });
+      const sellQty = qty;
+      const realized = (Math.abs(amount) - sellQty * pos.avg);
 
-      pos.qty -= qty;
+      pnlRealized += realized;
+      pnlHistory.push({ date, value: realized });
 
-      if (pos.qty <= 0) {
-        // posizione chiusa completamente
-        const details = buildClosedPositionReport(asset, pos.history);
-        closedTrades.push(details);
-        pos.qty = 0;
-        pos.avg = 0;
-        pos.history = [];
-      }
+      closedPositions.push({
+        asset,
+        qty: sellQty,
+        buyPrice: pos.avg,
+        sellTotal: Math.abs(amount),
+        pnl: realized,
+        date
+      });
+
+      pos.qty -= sellQty;
+      if (pos.qty <= 0) pos.avg = 0;
+
+      return;
     }
   });
 
-  // POSIZIONI APERTE
-  const open = Object.values(positions).filter(p => p.qty > 0);
+  /* === COSTRUISCI LISTA POSIZIONI APERTE === */
+  const openList = Object.entries(openPositions)
+    .filter(([a, p]) => p.qty > 0)
+    .map(([a, p]) => ({
+      asset: a,
+      qty: p.qty,
+      avg: p.avg,
+      invested: p.qty * p.avg
+    }));
 
-  renderResults(open, closedTrades, dividends, taxes, fees);
+  renderResults({
+    pnlRealized,
+    divReceived,
+    commissions,
+    taxes,
+    openList,
+    closedPositions,
+    pnlHistory
+  });
 }
 
-/* === DETTAGLIO POSIZIONE CHIUSA === */
+/* =========================
+   RENDER RISULTATI
+   ========================= */
+function renderResults(d) {
+  const card = document.getElementById("results");
+  card.classList.add("visible");
 
-function buildClosedPositionReport(asset, hist) {
+  let html = `
+    <h2>📊 Risultati Analisi</h2>
 
-  const buys = hist.filter(h => h.type === "BUY");
-  const sells = hist.filter(h => h.type === "SELL");
+    <p><b>PNL Realizzato:</b> ${d.pnlRealized.toFixed(2)} €</p>
+    <p><b>Dividendi ricevuti:</b> ${d.divReceived.toFixed(2)} €</p>
+    <p><b>Commissioni totali:</b> ${d.commissions.toFixed(2)} €</p>
+    <p><b>Imposte:</b> ${d.taxes.toFixed(2)} €</p>
 
-  const totalBuyQty = buys.reduce((s, b) => s + b.qty, 0);
-  const totalSellQty = sells.reduce((s, b) => s + b.qty, 0);
-
-  const avgPrice = buys.reduce((s, b) => s + b.qty * b.price, 0) / totalBuyQty;
-  const sellValue = sells.reduce((s, b) => s + b.qty * b.price, 0);
-
-  const pnl = sellValue - totalBuyQty * avgPrice;
-
-  const firstBuy = buys[0].date;
-  const lastSell = sells[sells.length - 1].date;
-
-  const holdDays = Math.round((lastSell - firstBuy) / (1000 * 3600 * 24));
-
-  return {
-    asset,
-    qty: totalBuyQty,
-    sellQty: totalSellQty,
-    avgPrice,
-    sellValue,
-    pnl,
-    pnlPct: (pnl / (avgPrice * totalBuyQty)) * 100,
-    holdDays
-  };
-}
-
-/* === RENDER === */
-
-function renderResults(openPositions, closed, dividends, taxes, fees) {
-  const el = document.getElementById("results");
-  el.classList.add("visible");
-
-  const fmt = n => isFinite(n) ? n.toFixed(2) : "-";
-
-  let html = `<h2>📊 Risultati Analisi</h2>`;
-
-  // ==== RIEPILOGO ====
-  const totalClosedPnL = closed.reduce((s, c) => s + c.pnl, 0);
-
-  html += `
-  <p><b>PNL chiuso:</b> ${fmt(totalClosedPnL)}</p>
-  <p><b>Dividendi totali:</b> ${fmt(dividends)}</p>
-  <p><b>Imposte totali:</b> ${fmt(taxes)}</p>
-  <p><b>Spese/Competenze:</b> ${fmt(fees)}</p>
-  <hr>
+    <h3>📂 Posizioni Aperte</h3>
   `;
 
-  // ==== POSIZIONI APERTE ====
-  html += `<h3>📂 Posizioni Aperte</h3>`;
-  if (openPositions.length === 0) {
-    html += `<p>Nessuna posizione aperta.</p>`;
-  } else {
-    html += `<table>
-      <tr><th>Asset</th><th>Quantità</th><th>Prezzo Medio</th></tr>`;
-
-    openPositions.forEach(p => {
-      html += `<tr>
-        <td>${p.asset}</td>
-        <td>${fmt(p.qty)}</td>
-        <td>${fmt(p.avg)}</td>
-      </tr>`;
-    });
-
-    html += `</table>`;
-  }
-
-  // ==== POSIZIONI CHIUSE ====
-  html += `<h3>📁 Posizioni Chiuse (dettagliate)</h3>`;
-
-  if (closed.length === 0) {
-    html += `<p>Nessuna posizione chiusa.</p>`;
-  } else {
-    html += `<table>
+  /* === TABELLA POSIZIONI APERTE === */
+  html += `
+    <table>
       <tr>
         <th>Asset</th>
-        <th>Qta Totale</th>
+        <th>Qta</th>
         <th>Prezzo Medio</th>
-        <th>Incasso Vendite</th>
-        <th>PNL</th>
-        <th>Rendimento %</th>
-        <th>Holding (giorni)</th>
-      </tr>`;
+        <th>Valore Investito</th>
+      </tr>
+  `;
+  d.openList.forEach(p => {
+    html += `
+      <tr>
+        <td>${p.asset}</td>
+        <td>${p.qty}</td>
+        <td>${p.avg.toFixed(2)}</td>
+        <td>${p.invested.toFixed(2)} €</td>
+      </tr>
+    `;
+  });
+  html += `</table>`;
 
-    closed.forEach(c => {
-      html += `<tr>
-        <td>${c.asset}</td>
-        <td>${fmt(c.qty)}</td>
-        <td>${fmt(c.avgPrice)}</td>
-        <td>${fmt(c.sellValue)}</td>
-        <td>${fmt(c.pnl)}</td>
-        <td>${fmt(c.pnlPct)}</td>
-        <td>${c.holdDays}</td>
-      </tr>`;
+  /* === POSIZIONI CHIUSE === */
+  html += `
+    <h3>📉 Posizioni Chiuse</h3>
+  `;
+  if (d.closedPositions.length === 0) {
+    html += "<p>Nessuna posizione chiusa.</p>";
+  } else {
+    html += `
+      <table>
+        <tr>
+          <th>Asset</th>
+          <th>Qta</th>
+          <th>Prezzo Medio Acquisto</th>
+          <th>Totale Vendita</th>
+          <th>PNL</th>
+          <th>Data</th>
+        </tr>
+    `;
+
+    d.closedPositions.forEach(p => {
+      html += `
+        <tr>
+          <td>${p.asset}</td>
+          <td>${p.qty}</td>
+          <td>${p.buyPrice.toFixed(2)}</td>
+          <td>${p.sellTotal.toFixed(2)}</td>
+          <td style="color:${p.pnl >= 0 ? "#22c55e" : "#ef4444"}">${p.pnl.toFixed(2)}</td>
+          <td>${p.date}</td>
+        </tr>
+      `;
     });
 
     html += `</table>`;
   }
 
-  el.innerHTML = html;
+  /* === GRAFICI === */
+  html += `
+    <h3>📊 Allocazione Portafoglio</h3>
+    <canvas id="pieChart" height="200"></canvas>
+
+    <h3>📈 PNL Storico</h3>
+    <canvas id="pnlChart" height="200"></canvas>
+  `;
+
+  card.innerHTML = html;
+
+  renderPieChart(d.openList);
+  renderPNLChart(d.pnlHistory);
+}
+
+/* =========================
+   GRAFICO - PORTAFOGLIO
+   ========================= */
+function renderPieChart(openList) {
+  if (openList.length === 0) return;
+
+  const ctx = document.getElementById("pieChart");
+  new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: openList.map(p => p.asset),
+      datasets: [{
+        data: openList.map(p => p.invested),
+      }]
+    }
+  });
+}
+
+/* =========================
+   GRAFICO - PNL STORICO
+   ========================= */
+function renderPNLChart(history) {
+  if (history.length === 0) return;
+
+  const ctx = document.getElementById("pnlChart");
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: history.map(h => h.date),
+      datasets: [{
+        label: "PNL Giornaliero",
+        data: history.map(h => h.value),
+        borderWidth: 2
+      }]
+    }
+  });
 }
