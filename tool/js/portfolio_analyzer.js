@@ -1,16 +1,17 @@
 /* ==========================
-   PORTFOLIO ANALYZER v7.0
+   PORTFOLIO ANALYZER v7.1
    ========================== */
 
 /* === UTILS === */
 
+// parsing numeri stile italiano: "-1.211,88 €" -> -1211.88
 function parseNum(value) {
   if (!value) return 0;
   return parseFloat(
     value
       .toString()
-      .replace(/\./g, "")
-      .replace(",", ".")
+      .replace(/\./g, "")   // toglie separatore migliaia
+      .replace(",", ".")    // converte la virgola in punto
       .replace("€", "")
       .trim()
   );
@@ -31,44 +32,25 @@ function diffDays(start, end) {
   return Math.round((parseDateIT(end) - parseDateIT(start)) / 86400000);
 }
 
-/* === FILE LOADER === */
+/* === FILE LOADER (bottone "Analizza") === */
 
 document.getElementById("analyzeBtn").addEventListener("click", () => {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return alert("Carica un CSV!");
+
   const reader = new FileReader();
   reader.onload = (e) => parseCSV(e.target.result);
-  // Excel italiano: di solito ISO-8859-1 / Windows-1252
   reader.readAsText(file, "ISO-8859-1");
 });
 
 function parseCSV(text) {
   const sep = text.includes(";") ? ";" : ",";
-  const rows = text.trim().split("\n").map(r => r.split(sep));
+  const rows = text.trim().split("\n").map((r) => r.split(sep));
 
-  // normalizzo header (tolgo BOM, maiuscolo)
-  const rawHeaders = rows[0];
-  const headers = rawHeaders.map(h =>
-    h.replace("\ufeff", "").trim().toUpperCase()
+  const headers = rows[0].map((h) => h.trim());
+  const trades = rows.slice(1).map((r) =>
+    Object.fromEntries(headers.map((h, i) => [h, r[i] ? r[i].trim() : ""]))
   );
-
-  const idx = {
-    descrizione: headers.indexOf("DESCRIZIONE"),
-    movimento: headers.indexOf("MOVIMENTO"),
-    qta: headers.indexOf("QTA'"),
-    importo: headers.indexOf("IMPORTO"),
-    data: headers.indexOf("DATA"),
-    tipologia: headers.indexOf("TIPOLOGIA")
-  };
-
-  const trades = rows.slice(1).map(r => ({
-    descrizione: r[idx.descrizione],
-    movimento: r[idx.movimento],
-    qta: r[idx.qta],
-    importo: r[idx.importo],
-    data: r[idx.data],
-    tipologia: r[idx.tipologia]
-  }));
 
   analyzeTrades(trades);
 }
@@ -79,37 +61,37 @@ function parseCSV(text) {
 
 function analyzeTrades(trades) {
 
-  const openPositions = {};     // asset -> { qty, cost }
-  const firstBuyDate = {};      // asset -> prima data acquisto (per holding)
+  const openPositions = {};   // asset -> { qty, avg }
+  const firstBuyDate = {};    // per holding period
 
   let pnlRealized = 0;
   let divReceived = 0;
   let commissions = 0;
   let taxes = 0;
 
-  // pool = profitti/perdite realizzati + dividendi − costi/imposte coperti dalla pool
+  // pool = profitti/perdite realizzati + dividendi - spese/imposte
+  // non ancora usati per nuovi acquisti
   let pool = 0;
 
-  // soldi ESTERNI immessi (stipendio/risparmi) netti
-  let invested = 0;
+  let invested = 0;           // SOLDI ESTERNI netti immessi nel sistema
 
-  const pnlHistory = [];        // per grafico PNL (eventi, con segno)
-  const equityHistory = [];     // { date, equity, invested, pool }
+  const pnlHistory = [];      // per grafico PNL eventi
+  const equityHistory = [];   // {date, equity, invested, pool}
   const closedPositions = [];
 
   function computeEquity() {
     return Object.values(openPositions)
-      .reduce((tot, p) => tot + p.qty * (p.cost / p.qty), 0);
+      .reduce((tot, p) => tot + p.qty * p.avg, 0);
   }
 
-  /* === CICLO SU TUTTE LE RIGHE === */
+  /* === CICLO SULLE RIGHE === */
 
   trades.forEach(t => {
-    const asset = cleanAsset(t.descrizione);
-    const tipo = (t.tipologia || "").trim();
-    const qty = parseNum(t.qta);
-    const amount = parseNum(t.importo);
-    const date = t.data;
+    const asset = cleanAsset(t["DESCRIZIONE"]);
+    const tipo = (t["TIPOLOGIA"] || "").trim();
+    const qty = parseNum(t["QTA'"]);
+    const amount = parseNum(t["IMPORTO"]);   // nel CSV: negativo = uscita, positivo = entrata
+    const date = t["DATA"];
 
     /* ============================
        COMPETENZE / IMPOSTE
@@ -117,15 +99,15 @@ function analyzeTrades(trades) {
     if (tipo === "Competenze" || tipo === "Imposta") {
       let cost = Math.abs(amount);
       if (tipo === "Competenze") commissions += cost;
-      if (tipo === "Imposta") taxes += cost;
+      if (tipo === "Imposta")    taxes       += cost;
 
-      // prima brucio la pool, poi (se serve) soldi tuoi
+      // prima si mangia la pool, poi – se non basta – soldi tuoi
       if (pool >= cost) {
         pool -= cost;
       } else {
         const extra = cost - pool;
         pool = 0;
-        invested -= extra;   // paghi con soldi esterni
+        invested += extra;   // devi mettere soldi tuoi per coprire il costo
       }
 
       equityHistory.push({
@@ -141,8 +123,8 @@ function analyzeTrades(trades) {
        DIVIDENDI
        ============================ */
     if (tipo === "Accredito dividendi") {
-      divReceived += amount;
-      pool += amount;                     // dividendo va in pool
+      divReceived += amount;  // positivo
+      pool += amount;
       pnlHistory.push({ date, value: amount });
 
       equityHistory.push({
@@ -158,23 +140,23 @@ function analyzeTrades(trades) {
        ACQUISTO TITOLI
        ============================ */
     if (tipo === "Acquisto titoli") {
-
-      if (!openPositions[asset]) openPositions[asset] = { qty: 0, cost: 0 };
+      if (!openPositions[asset]) openPositions[asset] = { qty: 0, avg: 0 };
       const pos = openPositions[asset];
 
-      const cashOut = Math.abs(amount);   // capitale usato per comprare
+      const cashOut = Math.abs(amount);  // quanto spendi in totale
 
-      // 1) uso prima la pool
+      // 1) usi prima la pool (profitti già fatti)
       const fromPool = Math.min(pool, cashOut);
       pool -= fromPool;
 
-      // 2) se non basta, il resto è SOLDI TUOI → invested
+      // 2) se non basta, il resto sono soldi nuovi -> invested sale
       const fromExternal = cashOut - fromPool;
       invested += fromExternal;
 
-      // 3) aggiorno posizione (costo totale e quantità)
-      pos.cost += cashOut;
-      pos.qty  += qty;
+      // aggiorna media di carico
+      const totalCost = pos.qty * pos.avg + cashOut;
+      pos.qty += qty;
+      pos.avg = totalCost / pos.qty;
 
       if (!firstBuyDate[asset]) firstBuyDate[asset] = date;
 
@@ -192,9 +174,9 @@ function analyzeTrades(trades) {
        ============================ */
     if (tipo === "Vendita titoli") {
 
-      // se non ho posizione, tratto tutto come PNL diretto (edge case)
+      // caso limite: vendo ma non ho posizione registrata
       if (!openPositions[asset] || openPositions[asset].qty <= 0) {
-        pool += amount;
+        pool += amount;               // lo trattiamo come PnL contante
         pnlHistory.push({ date, value: amount });
 
         equityHistory.push({
@@ -208,30 +190,28 @@ function analyzeTrades(trades) {
 
       const pos = openPositions[asset];
 
-      const ricavo = amount;                 // incasso (positivo)
-      const costoMedio = pos.cost / pos.qty;
-      const costoVenduto = costoMedio * qty; // quota di costo che esce
-      const profitto = ricavo - costoVenduto;
+      const sellTotal = amount;       // incasso (positivo)
+      const buyTotal  = pos.avg * qty;
+      const realized  = sellTotal - buyTotal;
 
-      pnlRealized += profitto;
-      pool += profitto;                      // profitto (o perdita) va in pool
-      pnlHistory.push({ date, value: profitto });
+      pnlRealized += realized;
+      pool        += realized;
+      pnlHistory.push({ date, value: realized });
 
       closedPositions.push({
         asset,
         qty,
-        buyTotal: costoVenduto,
-        sellTotal: ricavo,
-        pnl: profitto,
+        buyTotal,
+        sellTotal,
+        pnl: realized,
         holdingDays: diffDays(firstBuyDate[asset], date)
       });
 
-      // aggiorno posizione residua
-      pos.qty  -= qty;
-      pos.cost -= costoVenduto;
-
+      // aggiorna posizione residua
+      pos.qty -= qty;
       if (pos.qty <= 0) {
-        delete openPositions[asset];
+        pos.qty = 0;
+        pos.avg = 0;
         firstBuyDate[asset] = null;
       }
 
@@ -244,7 +224,7 @@ function analyzeTrades(trades) {
       return;
     }
 
-    /* === fallback per righe non gestite === */
+    // fallback per eventuali altre tipologie
     equityHistory.push({
       date,
       equity: computeEquity(),
@@ -253,19 +233,36 @@ function analyzeTrades(trades) {
     });
   });
 
-  /* === POSIZIONI APERTE (per tabella + pie) === */
+  /* === RICALIBRA LA CURVA "INVESTED" SUL RISULTATO FINALE ===
+     NetProfit = PNL realizzato + dividendi - commissioni - imposte
+     Identità teorica: Equity_finale = Invested_finale + NetProfit
+     ⇒ Invested_finale = Equity_finale - NetProfit
+     Spostiamo TUTTA la curva invested di una costante per rispettare questa
+     identità (così, se NetProfit > 0, invested finisce sotto equity).
+  */
 
+  const netProfit = pnlRealized + divReceived - commissions - taxes;
+
+  if (equityHistory.length > 0) {
+    const last = equityHistory[equityHistory.length - 1];
+    const targetInvestedEnd = last.equity - netProfit;
+    const delta = targetInvestedEnd - last.invested;
+
+    equityHistory.forEach(p => {
+      p.invested += delta;
+    });
+    invested += delta; // riallineiamo anche la variabile finale (per coerenza)
+  }
+
+  // === POSIZIONI APERTE PER TABELLA ===
   const openList = Object.entries(openPositions)
     .filter(([_, p]) => p.qty > 0)
-    .map(([asset, p]) => {
-      const avg = p.cost / p.qty;
-      return {
-        asset,
-        qty: p.qty,
-        avg,
-        invested: p.cost
-      };
-    });
+    .map(([asset, p]) => ({
+      asset,
+      qty: p.qty,
+      avg: p.avg,
+      invested: p.qty * p.avg
+    }));
 
   renderResults({
     pnlRealized,
@@ -304,13 +301,19 @@ function renderResults(d) {
     ${renderClosedPositions(d.closedPositions)}
 
     <h3>🟣 Allocazione portafoglio</h3>
-    <canvas id="pieChart"></canvas>
+    <canvas id="pieChart" height="180"></canvas>
 
     <h3>🔵 PNL Storico</h3>
-    <canvas id="pnlChart"></canvas>
+    <canvas id="pnlChart" height="180"></canvas>
 
     <h3>📈 Equity / Invested / Pool</h3>
-    <canvas id="equityChart"></canvas>
+    <p class="small-note">
+      Equity = costo delle posizioni aperte (capitale a mercato).<br>
+      Invested = soldi esterni netti immessi nel sistema.<br>
+      Pool = profitti disponibili (PNL realizzati + dividendi − spese/imposte
+      già pagate) non ancora usati per nuovi acquisti.
+    </p>
+    <canvas id="equityChart" height="220"></canvas>
   `;
 
   renderPieChart(d.openList);
@@ -339,7 +342,8 @@ function renderOpenPositions(list) {
 function renderClosedPositions(list) {
   if (!list.length) return "<p>Nessuna posizione chiusa.</p>";
   let h = `<table><tr>
-    <th>Asset</th><th>Qta</th><th>Acquisti</th><th>Vendite</th><th>PNL</th><th>Holding (gg)</th>
+    <th>Asset</th><th>Qta</th><th>Acquisti</th><th>Vendite</th>
+    <th>PNL</th><th>Holding (gg)</th>
   </tr>`;
   list.forEach(p => {
     h += `<tr>
@@ -369,6 +373,7 @@ function renderPieChart(list) {
   });
 }
 
+// PNL: barre verdi/rosse, valore assoluto
 function renderPNLChart(h) {
   if (!h.length) return;
   new Chart(document.getElementById("pnlChart"), {
@@ -384,6 +389,7 @@ function renderPNLChart(h) {
   });
 }
 
+// Equity / Invested / Pool
 function renderEquityChart(h) {
   if (!h.length) return;
   new Chart(document.getElementById("equityChart"), {
@@ -402,7 +408,7 @@ function renderEquityChart(h) {
           label: "Invested (soldi tuoi)",
           data: h.map(e => e.invested),
           borderColor: "#22c55e",
-          borderDash: [4, 4],
+          borderDash: [4,4],
           borderWidth: 2,
           tension: 0.2
         },
