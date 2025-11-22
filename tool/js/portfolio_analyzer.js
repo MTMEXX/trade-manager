@@ -1,5 +1,5 @@
 /* ==========================
-   PORTFOLIO ANALYZER v4.0
+   PORTFOLIO ANALYZER v5.0
    ========================== */
 
 /* === UTILS === */
@@ -66,8 +66,8 @@ function analyzeTrades(trades) {
   let commissions = 0;
   let taxes = 0;
 
-  const pnlHistory = [];     
-  const equityHistory = [];  
+  const pnlHistory = [];
+  const equityHistory = [];
 
   let equity = 0;
   const closedPositions = [];
@@ -79,33 +79,35 @@ function analyzeTrades(trades) {
     const amount = parseNum(t["IMPORTO"]);
     const date = t["DATA"];
 
-    // === SPESE / COMMISSIONI / BOLLI ===
+    /* === COMPETENZE === */
     if (tipo === "Competenze") {
       commissions += Math.abs(amount);
-      equity += amount;         // amount è negativo → equity scende
+      equity += amount;  // negativo → scende
       equityHistory.push({ date, value: equity });
       return;
     }
 
-    // === IMPOSTE ===
+    /* === IMPOSTE === */
     if (tipo === "Imposta") {
       taxes += Math.abs(amount);
-      equity += amount;         // amount negativo → equity scende
+      equity += amount;  // negativo → scende
       equityHistory.push({ date, value: equity });
       return;
     }
 
-    // === DIVIDENDI ===
+    /* === DIVIDENDI === */
     if (tipo === "Accredito dividendi") {
       divReceived += amount;
+
       pnlHistory.push({ date, value: amount });
 
-      equity += amount;         // dividendo → equity sale
+      equity += amount; // sale
       equityHistory.push({ date, value: equity });
+
       return;
     }
 
-    // === ACQUISTO ===
+    /* === ACQUISTO === */
     if (tipo === "Acquisto titoli") {
       if (!openPositions[asset]) openPositions[asset] = { qty: 0, avg: 0 };
 
@@ -118,28 +120,33 @@ function analyzeTrades(trades) {
 
       if (!firstBuyDateByAsset[asset]) firstBuyDateByAsset[asset] = date;
 
-      equity += amount;   // amount è NEGATIVO → equity scende
+      equity += amount;           // negativo → equity scende
       equityHistory.push({ date, value: equity });
 
       return;
     }
 
-    // === VENDITA ===
+    /* === VENDITA === */
     if (tipo === "Vendita titoli") {
       if (!openPositions[asset] || openPositions[asset].qty <= 0) {
-        // Vendo senza avere posizione (raro ma gestito)
-        pnlHistory.push({ date, value: amount });
-        equity += amount; // amount positivo → equity sale
+        // Edge case
+        pnlHistory.push({ date, value: Math.abs(amount) });
+        equity += amount;
         equityHistory.push({ date, value: equity });
         return;
       }
 
       const pos = openPositions[asset];
-      const sellTotal = amount;              // amount positivo
+      const sellTotal = amount;          // amount positivo
       const buyTotal = pos.avg * qty;
       const realized = sellTotal - buyTotal;
 
-      pnlHistory.push({ date, value: realized });
+      pnlHistory.push({
+        date,
+        value: realized >= 0 ? realized : Math.abs(realized),   // 🔥 valore assoluto
+        negative: realized < 0
+      });
+
       pnlRealized += realized;
 
       const holding = diffDays(firstBuyDateByAsset[asset], date);
@@ -160,7 +167,10 @@ function analyzeTrades(trades) {
         firstBuyDateByAsset[asset] = null;
       }
 
-      // EQUITY → INCASSO TOTALE della vendita
+      /*  
+        🔥 EQUITY = saldo del conto
+        → La vendita aggiunge TUTTI i soldi incassati (sellTotal)
+      */
       equity += sellTotal;
       equityHistory.push({ date, value: equity });
 
@@ -197,7 +207,7 @@ function renderResults(d) {
   const card = document.getElementById("results");
   card.classList.add("visible");
 
-  const fmt = v => isFinite(v) ? v.toFixed(2) : "-";
+  const fmt = (v) => (isFinite(v) ? v.toFixed(2) : "-");
 
   let html = `
     <h2>📊 Risultati Analisi</h2>
@@ -244,7 +254,8 @@ function renderOpenPositions(list) {
         <th>Investito</th>
       </tr>
   `;
-  list.forEach(p => {
+
+  list.forEach((p) => {
     html += `
       <tr>
         <td>${p.asset}</td>
@@ -253,6 +264,7 @@ function renderOpenPositions(list) {
         <td>${p.invested.toFixed(2)} €</td>
       </tr>`;
   });
+
   return html + "</table>";
 }
 
@@ -271,15 +283,17 @@ function renderClosedPositions(list) {
       </tr>
   `;
 
-  list.forEach(p => {
+  list.forEach((p) => {
     html += `
       <tr>
         <td>${p.asset}</td>
         <td>${p.qty}</td>
         <td>${p.buyTotal.toFixed(2)} €</td>
         <td>${p.sellTotal.toFixed(2)} €</td>
-        <td style="color:${p.pnl >= 0 ? '#22c55e' : '#ef4444'}">${p.pnl.toFixed(2)} €</td>
-        <td>${p.holdingDays ?? '-'}</td>
+        <td style="color:${p.pnl >= 0 ? "#22c55e" : "#ef4444"}">${p.pnl.toFixed(
+      2
+    )} €</td>
+        <td>${p.holdingDays ?? "-"}</td>
       </tr>`;
   });
 
@@ -292,28 +306,40 @@ function renderClosedPositions(list) {
 
 function renderPieChart(list) {
   if (!list.length) return;
+
   new Chart(document.getElementById("pieChart"), {
     type: "pie",
     data: {
-      labels: list.map(p => p.asset),
-      datasets: [{ data: list.map(p => p.invested) }]
-    }
+      labels: list.map((p) => p.asset),
+      datasets: [{ data: list.map((p) => p.invested) }],
+    },
   });
 }
 
-/* === PNL BAR GREEN/RED === */
+/* === PNL BAR VERDE/ROSSA IN ALTO === */
 function renderPNLChart(history) {
   if (!history.length) return;
 
   new Chart(document.getElementById("pnlChart"), {
     type: "bar",
     data: {
-      labels: history.map(h => h.date),
-      datasets: [{
-        data: history.map(h => h.value),
-        backgroundColor: history.map(h => (h.value >= 0 ? "#22c55e" : "#ef4444"))
-      }]
-    }
+      labels: history.map((h) => h.date),
+      datasets: [
+        {
+          data: history.map((h) => h.value), // always positive height
+          backgroundColor: history.map((h) =>
+            h.negative ? "#ef4444" : "#22c55e"
+          ),
+        },
+      ],
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+        },
+      },
+    },
   });
 }
 
@@ -324,13 +350,15 @@ function renderEquityChart(history) {
   new Chart(document.getElementById("equityChart"), {
     type: "line",
     data: {
-      labels: history.map(e => e.date),
-      datasets: [{
-        label: "Equity del conto",
-        data: history.map(e => e.value),
-        borderColor: "#38bdf8",
-        borderWidth: 2
-      }]
-    }
+      labels: history.map((e) => e.date),
+      datasets: [
+        {
+          label: "Equity del conto",
+          data: history.map((e) => e.value),
+          borderColor: "#38bdf8",
+          borderWidth: 2,
+        },
+      ],
+    },
   });
 }
