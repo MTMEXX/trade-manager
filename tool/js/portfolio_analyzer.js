@@ -1,5 +1,6 @@
 /* ==========================
-   PORTFOLIO ANALYZER v7.2 (Pool Fix)
+   PORTFOLIO ANALYZER v8.0
+   Pool = Equity – Invested (differenza diretta)
    ========================== */
 
 /* === UTILS === */
@@ -71,11 +72,9 @@ function analyzeTrades(trades) {
   let divReceived = 0;
   let commissions = 0;
   let taxes = 0;
+  let netPNL = 0;
 
-  let netPNL = 0;  // profitti netti cumulati
-
-  // le 3 serie dei grafici
-  let pool = 0;
+  // serie dei grafici
   let investedRisk = 0;
 
   const pnlHistory = [];
@@ -90,19 +89,11 @@ function analyzeTrades(trades) {
   function updateSeries(date, netPNL) {
     const equity = computeEquity();
 
-    const profitAvail = Math.max(netPNL, 0);
+    // Invested = equity - profitti netti (MAI sotto 0)
+    investedRisk = Math.max(equity - Math.max(netPNL, 0), 0);
 
-    // PROFITTI USATI PER COPRIRE L’EQUITY
-    const profitOnEquity = Math.min(equity, profitAvail);
-
-    // SOLDI TUOI A RISCHIO
-    investedRisk = Math.max(equity - profitAvail, 0);
-
-    // POOL = PROFITTI NON USATI PER COPRIRE RISCHIO
-    pool = profitAvail - profitOnEquity;
-
-    // sicurezza
-    if (pool < 0) pool = 0;
+    // Pool = differenza: EQUITY – INVESTED (può essere negativa o positiva)
+    const pool = equity - investedRisk;
 
     equityHistory.push({ date, equity, invested: investedRisk, pool });
   }
@@ -114,11 +105,10 @@ function analyzeTrades(trades) {
     const amount = parseNum(t["IMPORTO"]);
     const date = t["DATA"];
 
-    /* ============================
-       COSTI: competenze / imposte
-       ============================ */
+    /* === COSTI: competenze / imposte === */
     if (tipo === "Competenze" || tipo === "Imposta") {
       const cost = Math.abs(amount);
+
       if (tipo === "Competenze") commissions += cost;
       if (tipo === "Imposta") taxes += cost;
 
@@ -132,7 +122,7 @@ function analyzeTrades(trades) {
     /* === DIVIDENDI === */
     if (tipo === "Accredito dividendi") {
       divReceived += amount;
-      netPNL += amount;
+      netPNL += amount; // positivo
       pnlHistory.push({ date, value: amount });
 
       updateSeries(date, netPNL);
@@ -141,10 +131,9 @@ function analyzeTrades(trades) {
 
     /* === ACQUISTO === */
     if (tipo === "Acquisto titoli") {
-      if (!openPositions[asset]) {
-        openPositions[asset] = { qty: 0, avg: 0 };
-      }
+      if (!openPositions[asset]) openPositions[asset] = { qty: 0, avg: 0 };
       const pos = openPositions[asset];
+
       const cost = Math.abs(amount);
 
       const tot = pos.qty * pos.avg + cost;
@@ -159,18 +148,21 @@ function analyzeTrades(trades) {
 
     /* === VENDITA === */
     if (tipo === "Vendita titoli") {
-      if (!openPositions[asset] || openPositions[asset].qty <= 0) {
+      const pos = openPositions[asset];
+
+      if (!pos || pos.qty <= 0) {
+        // vendita senza posizione (errore broker)
         netPNL += amount;
         pnlHistory.push({ date, value: amount });
+
         updateSeries(date, netPNL);
         return;
       }
 
-      const pos = openPositions[asset];
       const sellTotal = amount;
       const buyTotal = pos.avg * qty;
-
       const realized = sellTotal - buyTotal;
+
       pnlRealized += realized;
       netPNL += realized;
 
@@ -199,6 +191,7 @@ function analyzeTrades(trades) {
     updateSeries(date, netPNL);
   });
 
+  /* Posizioni aperte finali */
   const openList = Object.entries(openPositions)
     .filter(([_, p]) => p.qty > 0)
     .map(([asset, p]) => ({
@@ -284,7 +277,9 @@ function renderClosedPositions(list) {
       <td>${p.qty}</td>
       <td>${p.buyTotal.toFixed(2)} €</td>
       <td>${p.sellTotal.toFixed(2)} €</td>
-      <td style="color:${p.pnl >= 0 ? "#22c55e" : "#ef4444"}">${p.pnl.toFixed(2)} €</td>
+      <td style="color:${p.pnl >= 0 ? "#22c55e" : "#ef4444"}">${p.pnl.toFixed(
+        2
+      )} €</td>
       <td>${p.holdingDays ?? "-"}</td>
     </tr>`;
   });
@@ -338,7 +333,7 @@ function renderEquityChart(hist) {
           tension: 0.25
         },
         {
-          label: "Pool (profitti disponibili)",
+          label: "Pool (equity - invested)",
           data: hist.map((e) => e.pool),
           borderColor: "#facc15",
           borderWidth: 2,
